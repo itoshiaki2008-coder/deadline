@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>補正期間・却下日 算出</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#0b1624;--bg2:#152538;--card:rgba(15,30,48,.72);--line:rgba(120,180,220,.22);
+  --ink:#e6f1fa;--sub:#8fa9bf;--cyan:#38d6e8;--amber:#f2b84b;--red:#ff7a7a;--field:#0a1320;
+}
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;min-height:100%;color:var(--ink);
+  font-family:"Noto Sans JP",system-ui,sans-serif;
+  background:
+    linear-gradient(rgba(56,214,232,.05) 1px,transparent 1px) 0 0/32px 32px,
+    linear-gradient(90deg,rgba(56,214,232,.05) 1px,transparent 1px) 0 0/32px 32px,
+    linear-gradient(160deg,var(--bg1),var(--bg2));
+  background-attachment:fixed;
+  padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+}
+main{max-width:520px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.2rem;margin:4px 0 4px;letter-spacing:.02em}
+.lead{color:var(--sub);font-size:.85rem;margin:0 0 18px;line-height:1.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.step{font-family:"Share Tech Mono",monospace;color:var(--cyan);font-size:.8rem;margin-bottom:10px;display:block}
+label{display:block;font-size:.85rem;color:var(--sub);margin-bottom:6px}
+input[type=date],select,input[type=number]{
+  width:100%;background:var(--field);color:var(--ink);border:1px solid var(--line);
+  border-radius:10px;padding:12px;font-size:1rem;font-family:inherit;color-scheme:dark}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+button,.btn{
+  display:block;width:100%;text-align:center;cursor:pointer;border:1px solid var(--cyan);
+  background:rgba(56,214,232,.12);color:var(--ink);border-radius:999px;padding:12px;
+  font-size:.95rem;font-family:inherit;box-shadow:0 0 14px rgba(56,214,232,.25)}
+button.ghost,.btn.ghost{border-color:var(--line);box-shadow:none;background:transparent;color:var(--sub)}
+.divider{color:var(--sub);font-size:.8rem;text-align:center;margin:12px 0}
+#status{font-size:.85rem;color:var(--sub);margin-top:10px;min-height:1.2em;line-height:1.5}
+#status.err{color:var(--red)}
+.bar{height:6px;background:var(--field);border-radius:99px;overflow:hidden;margin-top:8px;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+#cands{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#cands button{width:auto;padding:8px 14px;font-family:"Share Tech Mono",monospace;font-size:.9rem}
+details summary{cursor:pointer;color:var(--sub);font-size:.85rem}
+details .grid{margin-top:12px;display:grid;gap:10px}
+.chk{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:.85rem;margin:0}
+.chk input{width:18px;height:18px;accent-color:var(--cyan)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.tbl{padding:0;overflow:hidden}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+col.h{width:21%}
+th,td{border:1px solid var(--line);vertical-align:top;padding:12px 10px;text-align:left}
+tr:first-child>*{border-top:0}tr>*:first-child{border-left:0}tr>*:last-child{border-right:0}tbody tr:last-child>*{border-bottom:0}
+th[scope=row]{font-size:.85rem;font-weight:700;background:rgba(56,214,232,.08);color:var(--cyan)}
+.colh th{font-size:.78rem;font-weight:500;color:var(--sub);background:rgba(255,255,255,.03);line-height:1.5}
+td.top{padding:14px}
+.wa{font-size:.9rem;color:var(--cyan);margin:8px 0 12px;min-height:1.3em}
+.ds{font-size:.8rem;color:var(--sub);line-height:1.5}
+.dt{font-size:1.05rem;line-height:1.45;margin-top:6px;font-weight:500}
+.dt small{display:block;font-size:.8rem;color:var(--sub);font-weight:400}
+.dt.none{color:var(--sub)}
+.nt{font-size:.72rem;color:var(--sub);line-height:1.6;margin-top:6px}
+.nt em{font-style:normal;color:var(--amber)}
+tr.s2 td{box-shadow:inset 0 3px 0 rgba(56,214,232,.5)}
+tr.s3 td{box-shadow:inset 0 3px 0 rgba(242,184,75,.55)}
+tr.s4 td{box-shadow:inset 0 3px 0 rgba(255,122,122,.6)}
+.set{padding:14px 16px}
+#copy{margin-top:14px}
+.foot{color:var(--sub);font-size:.75rem;line-height:1.7;margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>補正期間・却下日 算出</h1>
+  <p class="lead">申請日を入力すると、補正期間・再補正期間・却下日を表にまとめます。</p>
+
+  <section class="card tbl">
+  <table>
+  <colgroup><col class="h"><col><col></colgroup>
+  <tbody>
+  <tr><th scope="row">申請日</th><td colspan="2" class="top">
+    <label for="start" class="sr">申請日</label>
+    <input type="date" id="start">
+    <div class="wa" id="wa"></div>
+    <div class="row">
+      <label class="btn" for="cam">カメラで撮影</label>
+      <label class="btn ghost" for="pic">写真を選ぶ</label>
+    </div>
+    <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+    <input type="file" id="pic" accept="image/*" hidden>
+    <div style="margin-top:12px">
+      <label for="lang">読み取りモード</label>
+      <select id="lang">
+        <option value="eng">数字・記号のみ（高速）</option>
+        <option value="jpn+eng">日本語あり（和暦・年月日）</option>
+      </select>
+    </div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="cands"></div>
+  </td></tr>
+  <tr class="colh"><th scope="col"></th><th scope="col">a　補正の意志が得られなかった場合</th><th scope="col">b　補正の意志が得られた場合</th></tr>
+<tr class="s2"><th scope="row">補正期間</th><td><div class="ds" id="dsA1"></div><div class="dt none" id="dA1">―</div><div class="nt" id="nA1"></div></td><td><div class="ds" id="dsB1"></div><div class="dt none" id="dB1">―</div><div class="nt" id="nB1"></div></td></tr>
+<tr class="s3"><th scope="row">再補正期間</th><td><div class="ds" id="dsA2"></div><div class="dt none" id="dA2">―</div><div class="nt" id="nA2"></div></td><td><div class="ds" id="dsB2"></div><div class="dt none" id="dB2">―</div><div class="nt" id="nB2"></div></td></tr>
+<tr class="s4"><th scope="row">却下日</th><td><div class="ds" id="dsA3"></div><div class="dt none" id="dA3">―</div><div class="nt" id="nA3"></div></td><td><div class="ds" id="dsB3"></div><div class="dt none" id="dB3">―</div><div class="nt" id="nB3"></div></td></tr>
+  </tbody>
+  </table>
+  </section>
+
+  <section class="card set">
+    <details>
+      <summary>日数・数え方の設定</summary>
+      <div class="grid">
+        <div class="row">
+          <div><label for="s1">補正 a</label><input type="number" id="s1" value="15" min="1" inputmode="numeric"></div>
+          <div><label for="s2">補正 b</label><input type="number" id="s2" value="30" min="1" inputmode="numeric"></div>
+        </div>
+        <div class="row">
+          <div><label for="s3">再補正 a・b</label><input type="number" id="s3" value="15" min="1" inputmode="numeric"></div>
+          <div><label for="s4">却下日（再補正期限から）</label><input type="number" id="s4" value="1" min="0" inputmode="numeric"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="chain" checked>次の期間は、平日にずらした後の期限日から数える</label>
+        <label class="chk"><input type="checkbox" id="ny">12/29〜1/3 も休日として扱う</label>
+      </div>
+    </details>
+    <button id="copy" class="ghost" style="display:none">結果をコピー</button>
+    <p class="foot">祝日は内閣府の定める国民の祝日（2007年以降の規定、振替休日・国民の休日を含む）で判定しています。臨時の休日が設けられた年は、公式のカレンダーで確認してください。</p>
+  </section>
+</main>
+
+<script>
+(function(){
+  var DAY=86400000, WD=['日','月','火','水','木','金','土'];
+  var $=function(id){return document.getElementById(id);};
+
+  /* ---------- 日付ユーティリティ（UTC基準） ---------- */
+  function mk(y,m,d){return new Date(Date.UTC(y,m-1,d));}
+  function key(d){return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
+  function fmt(d){return d.getUTCFullYear()+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCDate()).padStart(2,'0')+'（'+WD[d.getUTCDay()]+'）';}
+  function short(d){return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+'（'+WD[d.getUTCDay()]+'）';}
+  function addDays(d,n){return new Date(d.getTime()+n*DAY);}
+  function parseISO(s){var p=s.split('-');return mk(+p[0],+p[1],+p[2]);}
+  function validYMD(y,m,d){var t=mk(y,m,d);return t.getUTCFullYear()===y&&t.getUTCMonth()===m-1&&t.getUTCDate()===d;}
+
+  /* ---------- 祝日 ---------- */
+  var cache={};
+  function nthMon(y,m,n){var f=mk(y,m,1).getUTCDay();return 1+((8-f)%7)+(n-1)*7;}
+  function holidays(y){
+    if(cache[y])return cache[y];
+    var m={}, add=function(mo,d,n){m[key(mk(y,mo,d))]=n;};
+    var k=y-1980, sh=Math.floor(20.8431+0.242194*k-Math.floor(k/4)), sb=Math.floor(23.2488+0.242194*k-Math.floor(k/4));
+    add(1,1,'元日');
+    add(1,nthMon(y,1,2),'成人の日');
+    add(2,11,'建国記念の日');
+    if(y>=2020)add(2,23,'天皇誕生日');
+    add(3,sh,'春分の日');
+    add(4,29,'昭和の日');
+    add(5,3,'憲法記念日');add(5,4,'みどりの日');add(5,5,'こどもの日');
+    if(y===2020)add(7,23,'海の日');else if(y===2021)add(7,22,'海の日');else add(7,nthMon(y,7,3),'海の日');
+    if(y>=2016){if(y===2020)add(8,10,'山の日');else if(y===2021)add(8,8,'山の日');else add(8,11,'山の日');}
+    add(9,nthMon(y,9,3),'敬老の日');
+    add(9,sb,'秋分の日');
+    if(y===2020)add(7,24,'スポーツの日');else if(y===2021)add(7,23,'スポーツの日');else add(10,nthMon(y,10,2),'スポーツの日');
+    add(11,3,'文化の日');
+    add(11,23,'勤労感謝の日');
+    /* 国民の休日 */
+    var d;
+    for(d=mk(y,1,2);d<mk(y,12,31);d=addDays(d,1)){
+      if(!m[key(d)]&&d.getUTCDay()!==0&&m[key(addDays(d,-1))]&&m[key(addDays(d,1))])m[key(d)]='国民の休日';
+    }
+    /* 振替休日 */
+    Object.keys(m).sort().forEach(function(ks){
+      var p=ks.split('-'),h=mk(+p[0],+p[1],+p[2]);
+      if(h.getUTCDay()===0){var n=addDays(h,1);while(m[key(n)])n=addDays(n,1);m[key(n)]='振替休日';}
+    });
+    return (cache[y]=m);
+  }
+  function offReason(d,ny){
+    var w=d.getUTCDay();
+    var h=holidays(d.getUTCFullYear())[key(d)];
+    var r=[];
+    if(w===6)r.push('土曜');
+    if(w===0)r.push('日曜');
+    if(h)r.push(h);
+    if(ny){var mo=d.getUTCMonth()+1,dd=d.getUTCDate();if((mo===12&&dd>=29)||(mo===1&&dd<=3))r.push('年末年始');}
+    return r;
+  }
+  function adjust(d,ny){
+    var reasons=[],cur=d,r;
+    while((r=offReason(cur,ny)).length){reasons=reasons.concat(r);cur=addDays(cur,1);}
+    return {date:cur,orig:d,reasons:reasons.filter(function(x,i,a){return a.indexOf(x)===i;})};
+  }
+
+  /* ---------- 計算と表示 ---------- */
+  function era(d){
+    var t=d.getTime(),y=d.getUTCFullYear(),e,b;
+    if(t>=Date.UTC(2019,4,1)){e='令和';b=2018;}
+    else if(t>=Date.UTC(1989,0,8)){e='平成';b=1988;}
+    else if(t>=Date.UTC(1926,11,25)){e='昭和';b=1925;}
+    else return {e:'',n:String(y)};
+    var n=y-b;return {e:e,n:n===1?'元':String(n)};
+  }
+  function md(d){return (d.getUTCMonth()+1)+'月'+d.getUTCDate()+'日（'+WD[d.getUTCDay()]+'）';}
+  function wa(d){var r=era(d);return r.e+r.n+'年'+md(d);}
+  function wa2(d){var r=era(d);return r.e+r.n+'年<small>'+md(d)+'</small>';}
+  function waTxt(d){var r=era(d);return r.e+r.n+'年'+md(d);}
+  var last='';
+  function put(k,i,desc,it){
+    document.getElementById('ds'+k+i).textContent=desc;
+    var dt=document.getElementById('d'+k+i),nt=document.getElementById('n'+k+i);
+    if(!it){dt.className='dt none';dt.textContent='―';nt.innerHTML='';return;}
+    dt.className='dt';dt.innerHTML=wa2(it.date);
+    nt.innerHTML=it.reasons.length?'期限日が<em>'+it.reasons.join('・')+'</em>にあたるため、最初の平日にしています（元：'+short(it.orig)+'）。期間中の土日祝日は日数に含みます。':'';
+  }
+  function calc(){
+    var v=$('start').value;
+    var s1=+$('s1').value||15,s2=+$('s2').value||30,s3=+$('s3').value||15,s4=isNaN(parseInt($('s4').value,10))?1:Math.max(0,parseInt($('s4').value,10));
+    var ny=$('ny').checked,chain=$('chain').checked;
+    var rej=s4===1?'再補正期限の翌日':(s4===0?'再補正期限と同日':'再補正期限から'+s4+'日後');
+    var D={A1:'申請日から'+s1+'日間',B1:'申請日から'+s2+'日間',A2:'補正期限日から'+s3+'日間',B2:'補正期限日から'+s3+'日間',A3:rej,B3:rej};
+    var res={};
+    if(!v){
+      $('wa').textContent='';
+      [1,2,3].forEach(function(i){put('A',i,D['A'+i],null);put('B',i,D['B'+i],null);});
+      $('copy').style.display='none';return;
+    }
+    var start=parseISO(v);
+    $('wa').textContent=wa(start);
+    var a1=adjust(addDays(start,s1),ny),b1=adjust(addDays(start,s2),ny);
+    var a2=adjust(addDays(chain?a1.date:a1.orig,s3),ny),b2=adjust(addDays(chain?b1.date:b1.orig,s3),ny);
+    var a3=adjust(addDays(chain?a2.date:a2.orig,s4),ny),b3=adjust(addDays(chain?b2.date:b2.orig,s4),ny);
+    put('A',1,D.A1,a1);put('B',1,D.B1,b1);put('A',2,D.A2,a2);put('B',2,D.B2,b2);put('A',3,D.A3,a3);put('B',3,D.B3,b3);
+    last=['申請日　'+waTxt(start),
+      '【a 補正の意志が得られなかった場合】','補正期限　'+waTxt(a1.date),'再補正期限　'+waTxt(a2.date),'却下日　'+waTxt(a3.date),
+      '【b 補正の意志が得られた場合】','補正期限　'+waTxt(b1.date),'再補正期限　'+waTxt(b2.date),'却下日　'+waTxt(b3.date)].join('\n');
+    $('copy').style.display='block';
+  }
+  ['start','s1','s2','s3','s4','chain','ny'].forEach(function(id){$(id).addEventListener('input',calc);$(id).addEventListener('change',calc);});
+  $('copy').addEventListener('click',function(){
+    var b=$('copy');
+    function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='結果をコピー';},1500);}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(last).then(done,function(){});}
+  });
+  calc();
+
+  /* ---------- OCR ---------- */
+  function setStatus(t,err){var s=$('status');s.textContent=t;s.className=err?'err':'';}
+  function loadTess(){
+    if(window.Tesseract)return Promise.resolve();
+    return new Promise(function(res,rej){
+      var sc=document.createElement('script');
+      sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+      sc.onload=res;sc.onerror=function(){rej(new Error('load'));};
+      document.head.appendChild(sc);
+    });
+  }
+  function prep(file){
+    return createImageBitmap(file,{imageOrientation:'from-image'}).then(function(bm){
+      var sc=Math.min(1,1800/Math.max(bm.width,bm.height));
+      var c=document.createElement('canvas');c.width=Math.round(bm.width*sc);c.height=Math.round(bm.height*sc);
+      var x=c.getContext('2d');x.drawImage(bm,0,0,c.width,c.height);
+      var im=x.getImageData(0,0,c.width,c.height),p=im.data,lo=255,hi=0,i,g;
+      for(i=0;i<p.length;i+=4){g=.299*p[i]+.587*p[i+1]+.114*p[i+2];p[i]=g;if(g<lo)lo=g;if(g>hi)hi=g;}
+      var k=hi>lo?255/(hi-lo):1;
+      for(i=0;i<p.length;i+=4){g=Math.max(0,Math.min(255,(p[i]-lo)*k));p[i]=p[i+1]=p[i+2]=g;}
+      x.putImageData(im,0,0);return c;
+    });
+  }
+  function norm(t){
+    return t.replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);})
+            .replace(/[／]/g,'/').replace(/[．。]/g,'.').replace(/[－ー−]/g,'-');
+  }
+  function extract(raw){
+    var t=norm(raw),found=[],seen={};
+    function push(y,m,d,src){
+      if(!validYMD(y,m,d)||y<2000||y>2100)return;
+      var k=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      if(!seen[k]){seen[k]=1;found.push({iso:k,src:src});}
+    }
+    var re=/(20\d{2})\D{0,4}?(\d{1,2})\D{0,4}?(\d{1,2})/g,r;
+    while((r=re.exec(t)))push(+r[1],+r[2],+r[3]);
+    var base={'令和':2018,'平成':1988,'昭和':1925,r:2018,h:1988,s:1925};
+    var re2=/(令和|平成|昭和|[RrHhSs])\s*(元|\d{1,2})\D{0,3}?(\d{1,2})\D{0,3}?(\d{1,2})/g;
+    while((r=re2.exec(t))){
+      var e=r[1].length>1?r[1]:r[1].toLowerCase(),n=r[2]==='元'?1:+r[2];
+      push(base[e]+n,+r[3],+r[4]);
+    }
+    return found;
+  }
+  function setDate(iso){$('start').value=iso;calc();}
+  function showCands(list){
+    var box=$('cands');box.innerHTML='';
+    list.forEach(function(c){
+      var b=document.createElement('button');b.type='button';b.className='ghost';
+      b.textContent=c.iso.replace(/-/g,'/');
+      b.addEventListener('click',function(){setDate(c.iso);});
+      box.appendChild(b);
+    });
+  }
+  function scan(file){
+    if(!file)return;
+    $('cands').innerHTML='';
+    var bar=$('bar'),fill=$('barFill');bar.style.display='block';fill.style.width='3%';
+    setStatus('画像を準備しています…');
+    var lang=$('lang').value;
+    prep(file).then(function(canvas){
+      setStatus('読み取りエンジンを読み込んでいます…');
+      return loadTess().then(function(){
+        return Tesseract.createWorker(lang,1,{logger:function(m){
+          if(m.status==='recognizing text'){fill.style.width=Math.round(10+m.progress*90)+'%';setStatus('読み取り中…');}
+          else if(m.status&&m.status.indexOf('loading')===0){setStatus('言語データを読み込んでいます…');}
+        }});
+      }).then(function(w){
+        var p=lang==='eng'?w.setParameters({tessedit_char_whitelist:'0123456789/-.: RHSrhs'}):Promise.resolve();
+        return p.then(function(){return w.recognize(canvas);}).then(function(r){return w.terminate().then(function(){return r;});});
+      });
+    }).then(function(r){
+      bar.style.display='none';
+      var list=extract(r.data.text||'');
+      if(!list.length){setStatus('日付を認識できませんでした。日付欄に直接入力するか、日付部分を大きく撮り直してください。',true);return;}
+      setDate(list[0].iso);showCands(list);
+      setStatus(list.length>1?'複数の候補が見つかりました。起算日を確認し、違う場合は下の候補から選んでください。':'日付を読み取りました。起算日が正しいか確認してください。');
+    }).catch(function(){
+      bar.style.display='none';
+      setStatus('読み取り機能を使えませんでした（通信環境、またはこのページの表示環境による制限の可能性があります）。日付欄に直接入力してください。',true);
+    });
+  }
+  ['cam','pic'].forEach(function(id){
+    $(id).addEventListener('change',function(e){scan(e.target.files[0]);e.target.value='';});
+  });
+})();
+</script>
+</body>
+</html>
